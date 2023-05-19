@@ -6,50 +6,61 @@ library("lidR")
 library("stars")
 library("terra")
 library("raster")
+library("dplyr")
 
 # Set working directory
 setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 
 # Required file paths
-buildings_path <- "../data/test 382_5826_ai/buildings.gpkg"
-las_path <- "../data/test 382_5826_ai/3dm_33_382_5826_1_be.las"
 # Extract crowns for small tif tiles
-tif_directory <- "../data/test 382_5826_ai/382_5826_1_imgs/"
+tif_directory <- "G:/Meine Ablage/data/382_5826_1/sliced_imgs_2020S/"
+
+las_nobuild_path <- "G:/Meine Ablage/data/382_5826_1/LAS_no_buildings"
+las_files <- list.files(path = las_nobuild_path, pattern = "\\.las$", full.names = TRUE, recursive = FALSE)
 
 # Outputs
-las_nobuild_path <- "../data/test 382_5826_ai/las_clipped.las"
-crowns_path <- "../data/test 382_5826_ai/382_5826_1_crowns/"
+crowns_path <- "G:/Meine Ablage/data/382_5826_1/crowns/"
 
-### Function to remove buildings from Lidar data
-remove_buildings_from_las <- function(buildings_path, las_path) {
-  buildings <- st_read(buildings_path)
-  crs <- st_crs(buildings)
-  las <- readLAS(las_path, filter = "-drop_z_below 0")
-  las_check(las)
-  st_crs(las) <- 25833
+### Calculate width to height ratio to eliminate elongated polygons
+### Using bbox instead of oo-bbox
+calculate_ratio <- function(polygon) {
+  # Calculate the minimum bounding box
+  mbr <- st_bbox(polygon)
   
-  # Normalization (subtract the DTM)
-  gnd <- filter_ground(las)
-  dtm <- rasterize_terrain(las, 1, knnidw())
-  nlas <- normalize_height(las, knnidw())
+  # The width and height of the MBR can be calculated from its coordinates
+  width = mbr["xmax"] - mbr["xmin"]
+  height = mbr["ymax"] - mbr["ymin"]
   
-  # Get the inverse of the buildings and crop it
-  las_bbox <- st_as_sfc(st_bbox(las))
-  buildings_aoi <- st_crop(buildings, las_bbox)
-  erase_feature <- st_difference(las_bbox, st_union(buildings_aoi))
-  las_clip <- clip_roi(nlas, erase_feature)
+  # Calculate the width-to-height ratio
+  ratio = width / height
   
-  return(las_clip)
+  return(ratio)
+}
+custom_crown_metrics <- function(z, i) { # user-defined function
+  metrics <- list(
+    z_max = max(z),   # max height
+    z_sd = sd(z),     # vertical variability of points
+    i_mean = mean(i), # mean intensity
+    i_max  = max(i)   # max intensity
+  )
+  return(metrics) # output
+}
+
+calculate_ratio_df <- function(df) {
+  df %>%
+    rowwise() %>%
+    mutate(width_to_height_ratio = calculate_ratio(geometry))
 }
 
 ### Function to extract crowns from Lidar data
 extract_crowns <- function(las_clip, bbox) {
   las_aoi <- clip_roi(las_clip, bbox)
   
+  # If no LAS point is present, skip
   if (dim(las_aoi@data)[1] < 5){
     return()
   }
-  
+
   # algorithm for digital surface model computation based on a points-to-raster method: 
   # for each pixel of the output raster the function attributes the height 
   # of the highest point found. The subcircle tweak replaces each point 
@@ -61,42 +72,83 @@ extract_crowns <- function(las_clip, bbox) {
   # Calculate focal ("moving window") values for each cell: smoothing steps with a median filter
   kernel <- matrix(1,3,3)
   chm_p2r_05_smoothed <- terra::focal(chm_p2r_05, w = kernel, fun = median, na.rm = TRUE)
-  ttops_chm_p2r_05_smoothed <- locate_trees(chm_p2r_05_smoothed, lmf((ws=8))) # using a greater window size
-  algo <- dalponte2016(chm_p2r_05_smoothed, ttops_chm_p2r_05_smoothed)
+  
+  # Use dalponte algorithm
+  #ttops_chm_p2r_05_smoothed <- locate_trees(chm_p2r_05_smoothed, lmf((ws=8))) # using a greater window size
+  #algo <- dalponte2016(chm_p2r_05_smoothed, ttops_chm_p2r_05_smoothed)
+  #las_tree <- segment_trees(las_aoi, algo)
+  #crowns <- crown_metrics(las_tree, func = .stdtreemetrics, geom = "convex")
+  #crowns <- crowns[crowns$convhull_area > 1,]
+  
+  # Use Silva algorithm
+  ttops_chm_p2r_05_smoothed <- locate_trees(chm_p2r_05_smoothed, lmf(10))
+  algo <- silva2016(chm_p2r_05_smoothed, ttops_chm_p2r_05_smoothed)
   las_tree <- segment_trees(las_aoi, algo)
   crowns <- crown_metrics(las_tree, func = .stdtreemetrics, geom = "convex")
+  crowns <- crowns[crowns$convhull_area > 10,]
+  crowns <- calculate_ratio_df(crowns)
+  crowns <- crowns[crowns$width_to_height_ratio > 0.5 & crowns$width_to_height_ratio < 1.5 ,]
   
   return(crowns)
 }
 
 ### Function to process all .tif files in a given directory
-process_tif_files <- function(dir_path, crowns_path) {
-  files <- list.files(path = dir_path, pattern = "*.tif", full.names = TRUE, recursive = FALSE)
+# process_tif_files <- function(dir_path, crowns_path) {
+#   files <- list.files(path = dir_path, pattern = "\\.tif$", full.names = TRUE, recursive = FALSE)
+#   
+#   lapply(files, function(x) {
+#     print(x)
+#     ras <- st_as_sf(read_stars(x))
+#     st_crs(ras) <- 25833
+#     ext <- st_bbox(ras)
+#     crowns <- extract_crowns(las_clip, ext)
+#     
+#     if (!is.null(crowns)) {
+#       filename <- strsplit(sub(".*/", "", x), "\\.")[[1]][1]
+#       st_write(crowns, paste(crowns_path, filename, ".geojson", sep = ""), delete_dsn = T)
+#     }
+#   })
+# }
+### Function to process all .tif files in a given directory
+process_tif_files <- function(dir_path, crowns_path, las_files) {
+  tif_files <- list.files(path = dir_path, pattern = "\\.tif$", full.names = TRUE, recursive = FALSE)
   
-  lapply(files, function(x) {
-    print(x)
-    ras <- st_as_sf(read_stars(x))
+  lapply(tif_files, function(tif_file) {
+    print(tif_file)
+    ras <- st_as_sf(read_stars(tif_file))
     st_crs(ras) <- 25833
     ext <- st_bbox(ras)
+    
+    # Extract base name of the tif file
+    tif_base_name <- strsplit(basename(tif_file), "_be_")[[1]][1]
+    
+    # Find the matching las file
+    las_file <- las_files[grep(tif_base_name, las_files)]
+    las_clip <- readLAS(las_file)
+    
+    # Only consider crowns taller than 5 m
+    las_clip <- filter_poi(las_clip, Z >= 5)
+    chm <- rasterize_canopy(las_clip, 1, p2r())
+    
     crowns <- extract_crowns(las_clip, ext)
     
     if (!is.null(crowns)) {
-      filename <- strsplit(sub(".*/", "", x), "\\.")[[1]][1]
+      filename <- strsplit(sub(".*/", "", tif_file), "\\.")[[1]][1]
       st_write(crowns, paste(crowns_path, filename, ".geojson", sep = ""), delete_dsn = T)
     }
   })
 }
 
+
 ### Processing
 
-# Remove building points from LAS
-las_nobuild <- remove_buildings_from_las(buildings_path, las_path)
-writeLAS(las_nobuild, las_nobuild_path)
+#las_nobuild <- readLAS(las_nobuild_path)
 
-#las_nobuild <- readLAS(las_no_buildings_path)
 # Only consider crowns taller than 10 m
-las_clip <- filter_poi(las_nobuild, Z >= 10)
-chm <- rasterize_canopy(las_clip, 1, pitfree(thr, edg))
-plot(chm)
+#las_clip <- filter_poi(las_nobuild, Z >= 5)
+#chm <- rasterize_canopy(las_clip, 1, p2r())
+#plot(chm)
 
-process_tif_files(tif_directory, crowns_path)
+#process_tif_files(tif_directory, crowns_path)
+process_tif_files(tif_directory, crowns_path, las_files)
+
