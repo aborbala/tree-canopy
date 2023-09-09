@@ -54,12 +54,15 @@ calculate_ratio_df <- function(df) {
 
 ### Function to extract crowns from Lidar data
 extract_crowns <- function(las_clip, bbox) {
+  print("extracting crowns...")
   las_aoi <- clip_roi(las_clip, bbox)
-  
+
   # If no LAS point is present, skip
-  if (dim(las_aoi@data)[1] < 5){
+  if (dim(las_aoi@data)[1] < 10){
+    print("extracting crowns... NO LAS present, return...")
     return()
   }
+  print("extracting crowns... LAS present!")
 
   # algorithm for digital surface model computation based on a points-to-raster method: 
   # for each pixel of the output raster the function attributes the height 
@@ -81,13 +84,19 @@ extract_crowns <- function(las_clip, bbox) {
   #crowns <- crowns[crowns$convhull_area > 1,]
   
   # Use Silva algorithm
-  ttops_chm_p2r_05_smoothed <- locate_trees(chm_p2r_05_smoothed, lmf(10))
+  ttops_chm_p2r_05_smoothed <- locate_trees(chm_p2r_05_smoothed, lmf(8))
   algo <- silva2016(chm_p2r_05_smoothed, ttops_chm_p2r_05_smoothed)
   las_tree <- segment_trees(las_aoi, algo)
-  crowns <- crown_metrics(las_tree, func = .stdtreemetrics, geom = "convex")
-  crowns <- crowns[crowns$convhull_area > 10,]
-  crowns <- calculate_ratio_df(crowns)
-  crowns <- crowns[crowns$width_to_height_ratio > 0.5 & crowns$width_to_height_ratio < 1.5 ,]
+  #crowns <- crown_metrics(las_tree, func = .stdtreemetrics, geom = "convex")
+  #crowns <- crowns[crowns$convhull_area > 10,]
+  #crowns <- calculate_ratio_df(crowns)
+  #crowns <- crowns[crowns$width_to_height_ratio > 0.5 & crowns$width_to_height_ratio < 1.5 ,]
+  ccm = ~custom_crown_metrics(z = Z, i = Intensity)
+  crowns <- crown_metrics(las_tree, func = ccm, geom = "concave")
+  crowns <- crowns[crowns$z_sd > 0.5,]
+  #crowns <- calculate_ratio_df(crowns)
+  #crowns <- crowns[crowns$width_to_height_ratio > 0.5 & crowns$width_to_height_ratio < 1.5 ,]
+  crowns <- st_simplify(crowns, dTolerance = 0.3)
   
   return(crowns)
 }
