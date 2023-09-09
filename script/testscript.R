@@ -31,16 +31,6 @@ calculate_ratio_df <- function(df) {
     rowwise() %>%
     mutate(width_to_height_ratio = calculate_ratio(geometry))
 }
-custom_crown_metrics <- function(z, i) { # user-defined function
-  metrics <- list(
-    z_max = max(z),   # max height
-    z_sd = sd(z),     # vertical variability of points
-    i_mean = mean(i), # mean intensity
-    i_max  = max(i)   # max intensity
-  )
-  return(metrics) # output
-}
-
 
 #las_nobuild_path <- "../data/test 382_5826_ai/las_clipped.las"
 las_nobuild_path <- "G:/Meine Ablage/data/382_5826_1/LAS_no_buildings/3dm_33_382_5827_1_be_nobuild.las"
@@ -54,10 +44,9 @@ files <- list.files(path = tif_directory, pattern = "\\.tif$", full.names = TRUE
 
 #test <- files[75]
 #print(test)
-test <- "G:/Meine Ablage/data/382_5826_1/sliced_imgs_2020S/3dm_33_382_5827_1_be_0_2.tif"
+test <- "G:/Meine Ablage/data/382_5826_1/sliced_imgs_2020S/3dm_33_382_5827_1_be_0_1.tif"
 
-ras <- rast(test)
-#ras <- st_as_sf(read_stars(test))
+ras <- st_as_sf(read_stars(test))
 st_crs(ras) <- 25833
 ext <- st_bbox(ras)
 
@@ -77,7 +66,7 @@ if (dim(las_aoi@data)[1] < 5){
 chm_p2r_05 <- rasterize_canopy(las_aoi, 0.5, p2r(subcircle = 0.2), pkg = "terra")
 plot(chm_p2r_05)
 
-kernel <- matrix(1,3,3)
+kernel <- matrix(1,5,5)
 # Calculate focal ("moving window") values for each cell: smoothing steps with a median filter
 chm_p2r_05_smoothed <- terra::focal(chm_p2r_05, w = kernel, fun = median, na.rm = TRUE)
 ttops_chm_p2r_05_smoothed <- locate_trees(chm_p2r_05_smoothed, lmf((ws=10))) # using a greater window size
@@ -98,30 +87,25 @@ crowns <- calculate_ratio_df(crowns)
 
 crowns <- crowns[crowns$width_to_height_ratio > 0.5 & crowns$width_to_height_ratio < 1.5 ,]
 plot(chm_p2r_05_smoothed, col = height.colors(50))
-#plot(sf::st_geometry(ttops), add = TRUE, pch = 3)
+plot(sf::st_geometry(ttops), add = TRUE, pch = 3)
 plot(crowns["convhull_area"], col = NA, border=2, add = TRUE)
 
 ### V2. Silva
+
+ttops <- locate_trees(chm_p2r_05_smoothed, lmf(8))
 terra::plot(rast(test))
 #plot(chm_p2r_05_smoothed, col = height.colors(50), add = TRUE)
-
-ttops <- locate_trees(chm_p2r_05_smoothed, lmf(10))
-plot(ttops, add = TRUE)
-algo_silva <- silva2016(chm_p2r_05_smoothed, ttops, ws = 10)
-las_silva <- segment_trees(las_aoi, algo_silva)
-ccm = ~custom_crown_metrics(z = Z, i = Intensity)
-crowns_silva <- crown_metrics(las_silva, func = ccm, geom = "concave")
-crowns_silva <- crowns_silva[crowns_silva$z_sd > 0.5,]
-crowns_silva <- st_simplify(crowns_silva, dTolerance = 0.3)
-
-#crowns_silva <- crowns_silva[crowns_silva$convhull_area > 10,]
-#crowns_silva <- calculate_ratio_df(crowns_silva)
-#crowns_silva <- crowns_silva[crowns_silva$width_to_height_ratio > 0.5 & crowns_silva$width_to_height_ratio < 1.5 ,]
-
-#st_write(crowns_silva, "crowns_silva.geojson", delete_dsn = T)
-
 plot(sf::st_geometry(ttops), add = TRUE, pch = 3, col=5)
-plot(crowns_silva["treeID"], col = 'yellow', border=2, add=T)
+algo_silva <- silva2016(chm_p2r_05_smoothed, ttops)
+las_silva <- segment_trees(las_aoi, algo_silva)
+crowns_silva <- crown_metrics(las_silva, ~list(imean = mean(Intensity)), func = .stdtreemetrics, geom = "concave")
+#crowns_silva <- crown_metrics(las_silva, ~list(imean = mean(Intensity)), func = .stdtreemetrics, geom = "concave")
+crowns_silva <- crowns_silva[crowns_silva$convhull_area > 10,]
+crowns_silva <- calculate_ratio_df(crowns_silva)
+crowns_silva <- crowns_silva[crowns_silva$width_to_height_ratio > 0.5 & crowns_silva$width_to_height_ratio < 1.5 ,]
+crowns_silva <- st_simplify(crowns_silva, dTolerance = 0.3)
+plot(crowns_silva["convhull_area"], col = NA, border=1, add = TRUE)
+#st_write(crowns_silva, "crowns_silva.geojson", delete_dsn = T)
 
 ###Watershed
 algo_ws <- watershed(chm_p2r_05_smoothed)
