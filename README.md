@@ -15,6 +15,9 @@
 - **Source**: [Building Footprints Source Link](https://www.berlin.de/sen/sbw/stadtdaten/geoportal/liegenschaftskataster/)
 - **WFS**: https://fbinter.stadt-berlin.de/fb/wfs/data/senstadt/s_wfs_alkis_gebaeudeflaechen
 
+# Methodology 
+![workflow](./thesis.drawio.png)
+
 ## 01. Preprocessing Steps
 
 ### 1. DOP Slicing
