@@ -13,13 +13,13 @@ setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 
 # Required file paths
 # Extract crowns for small tif tiles
-tif_directory <- "G:/Meine Ablage/data/382_5826_1/sliced_imgs_2020S/"
+tif_directory <- "G:/Meine Ablage/data/400_5816/sliced_output_2020S/"
 
-las_nobuild_path <- "G:/Meine Ablage/data/382_5826_1/LAS_no_buildings"
+las_nobuild_path <- "C:/tree-canopy/data/400_5816/LAS_no_buildings"
 las_files <- list.files(path = las_nobuild_path, pattern = "\\.las$", full.names = TRUE, recursive = FALSE)
 
 # Outputs
-crowns_path <- "G:/Meine Ablage/data/382_5826_1/crowns/"
+crowns_path <- "G:/Meine Ablage/data/400_5816/crowns/"
 
 ### Calculate width to height ratio to eliminate elongated polygons
 ### Using bbox instead of oo-bbox
@@ -121,7 +121,6 @@ extract_crowns <- function(las_clip, bbox) {
 ### Function to process all .tif files in a given directory
 process_tif_files <- function(dir_path, crowns_path, las_files) {
   tif_files <- list.files(path = dir_path, pattern = "\\.tif$", full.names = TRUE, recursive = FALSE)
-  
   lapply(tif_files, function(tif_file) {
     print(tif_file)
     ras <- st_as_sf(read_stars(tif_file))
