@@ -33,15 +33,16 @@ remove_buildings_from_las <- function(buildings_path, las_path) {
   las_bbox <- st_as_sfc(st_bbox(las))
   buildings_aoi <- st_crop(buildings, las_bbox)
   erase_feature <- st_difference(las_bbox, st_union(buildings_aoi))
+
   las_clip <- clip_roi(nlas, erase_feature)
   
   return(las_clip)
 }
 
 # Folder paths
-las_folder_path <- "G:/Meine Ablage/data/382_5826_1/LAS"
-buildings_path <- "G:/Meine Ablage/data/382_5826_1/buildings.gpkg"
-output_folder_path <- "G:/Meine Ablage/data/382_5826_1/LAS_no_buildings"
+las_folder_path <- "C:/tree-canopy/data/400_5816/LAS"
+buildings_path <- "C:/tree-canopy/data/400_5816/buildings.gpkg"
+output_folder_path <- "C:/tree-canopy/data/400_5816/LAS_no_buildings"
 dir.create(output_folder_path)
 
 # Loop through all LAS files in the folder and remove buildings
