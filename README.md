@@ -18,7 +18,7 @@
 # Methodology 
 ![workflow](./thesis.drawio.png)
 
-## 01. Preprocessing Steps
+## 01. Preprocessing Steps/Prepare Training Data
 
 ### 1. DOP Slicing
 - Slice the DOP into 100m x 100m segments to manage the data efficiently and to match the processing scale of the LiDAR data.
@@ -26,7 +26,7 @@
 ### 2. LAS and Building Footprints Integration
 - Combine LAS data with building footprints to eliminate points corresponding to buildings from the LAS data. This step ensures that only vegetation and natural features are analyzed for tree crown extraction.
 
-### 3. LAS Cropping and Tree Crown Extraction
+### 3. Tree Crown Extraction via lidR
 - Using the dimensions of the DOP slices, crop the LAS data to correspond with each 100m x 100m segment.
 - Extract tree crowns using the lidR package. lidR is an R package for manipulating and visualizing airborne laser scanning (ALS) data with an emphasis on forestry applications.
 
