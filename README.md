@@ -45,6 +45,8 @@
 
 ## 03. Model Training Using Detectron2
 - Utilize Detectron2, a state-of-the-art deep learning library for object detection and segmentation, to train a model on the ranked data. The model learns to identify and segment tree crowns from the input data.
+### 1. Create training and validation dataset
+### 2. Model Training
 
 ## 04. Evaluation
 - Evaluate the trained model on a separate validation set to assess its performance. Metrics such as precision, recall, and F1 score will be used to determine the accuracy and effectiveness of the segmentation model.
