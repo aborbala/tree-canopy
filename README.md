@@ -55,6 +55,6 @@
 - Mask R-CNN with ResNet-101 FPN
 
 ## 04. Evaluation
-- Evaluate the trained model on a separate validation set to assess its performance. Metrics such as precision, recall, and F1 score will be used to determine the accuracy and effectiveness of the segmentation model.
+- Evaluate the trained model on a separate validation set. + Detect Over/Underfitting
   ### 1. Evaluate model metrics
   ### 2. Test on new data
