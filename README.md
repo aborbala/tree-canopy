@@ -44,7 +44,12 @@
   - 50 and below: many other objects, missing trees, confusing geometries
 
 ## 03. Model Training Using Detectron2
-- Utilize Detectron2, a state-of-the-art deep learning library for object detection and segmentation, to train a model on the ranked data. The model learns to identify and segment tree crowns from the input data.
+- Using Detectron2 deep learning library to train a model on the ranked data. The model learns to identify and segment tree crowns from the input data.
+- https://github.com/facebookresearch/detectron2/blob/main/MODEL_ZOO.md
+  
+**Configs:**
+- Mask R-CNN (extension of Faster-RCNN with segmentation masks) with ResNet-50 (feature extraction) backbone + FPN
+- Mask R-CNN with ResNet-101 FPN
 ### 1. Create training and validation dataset
 ### 2. Model Training
 
