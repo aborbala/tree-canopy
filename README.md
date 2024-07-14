@@ -47,6 +47,8 @@ https://r-lidar.github.io/lidRbook/
 ## 03. Model Training Using Detectron2
 
 ### 1. Create training and validation dataset
+- [] Runs: 03_01_Creating_training_and_validation_dataset.ipynb
+- 
 ### 2. Model Training
 - Using Detectron2 deep learning library to train a model on the ranked data. The model learns to identify and segment tree crowns from the input data.
 - https://github.com/facebookresearch/detectron2/blob/main/MODEL_ZOO.md
