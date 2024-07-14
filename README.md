@@ -29,6 +29,7 @@
 ### 3. Tree Crown Extraction via lidR
 - Using the dimensions of the DOP slices, crop the LAS data to correspond with each 100m x 100m segment.
 - Extract tree crowns using the lidR package. lidR is an R package for manipulating and visualizing airborne laser scanning (ALS) data with an emphasis on forestry applications.
+https://r-lidar.github.io/lidRbook/
 
 ### 4. Data Cleaning
 - Eliminate polygons with elongated shapes that are unlikely to represent tree crowns. This step helps in refining the dataset to include only tree-like shapes.
