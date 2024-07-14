@@ -1,4 +1,4 @@
-# Deep Learning-Based Segmentation of Individual Tree Crowns Utilizing Automated Annotations from High-Resolution Aerial and LiDAR Data
+# Deep Learning-Based Segmentation of Individual Tree Crowns from Aerial Images Using LiDAR-Derived Annotations
 
 ## Data Sources
 
