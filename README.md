@@ -50,6 +50,7 @@ https://r-lidar.github.io/lidRbook/
 ### 2. Model Training
 - Using Detectron2 deep learning library to train a model on the ranked data. The model learns to identify and segment tree crowns from the input data.
 - https://github.com/facebookresearch/detectron2/blob/main/MODEL_ZOO.md
+- Instance segmentation benchmarks: https://paperswithcode.com/sota/instance-segmentation-on-coco
   
 **Configs:**
 - Mask R-CNN (extension of Faster-RCNN with segmentation masks) with ResNet-50 (feature extraction) backbone + FPN
