@@ -22,7 +22,7 @@ remove_buildings_from_las <- function(buildings_path, las_path) {
   st_crs(las) <- 25833
   
   # Add 50 cm buffer around the buildings
-  buildings <- st_buffer(buildings, 0.5)
+  buildings <- st_buffer(buildings, 1)
   
   # Normalization (subtract the DTM)
   gnd <- filter_ground(las)
@@ -40,9 +40,9 @@ remove_buildings_from_las <- function(buildings_path, las_path) {
 }
 
 # Folder paths
-las_folder_path <- "C:/tree-canopy/data/400_5816/LAS"
-buildings_path <- "C:/tree-canopy/data/400_5816/buildings.gpkg"
-output_folder_path <- "C:/tree-canopy/data/400_5816/LAS_no_buildings"
+las_folder_path <- "C:/tree-canopy/data/386_5818/LAS"
+buildings_path <- "C:/tree-canopy/data/386_5818/buildings.gpkg"
+output_folder_path <- "C:/tree-canopy/data/386_5818/LAS_no_buildings"
 dir.create(output_folder_path)
 
 # Loop through all LAS files in the folder and remove buildings

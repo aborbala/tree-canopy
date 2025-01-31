@@ -13,13 +13,13 @@ setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 
 # Required file paths
 # Extract crowns for small tif tiles
-tif_directory <- "G:/Meine Ablage/data/400_5816/sliced_output_2020S/"
+tif_directory <- "G:/Meine Ablage/data/386_5818/sliced_imgs_2020S/"
 
-las_nobuild_path <- "C:/tree-canopy/data/400_5816/LAS_no_buildings"
+las_nobuild_path <- "C:/tree-canopy/data/386_5818/LAS_no_buildings"
 las_files <- list.files(path = las_nobuild_path, pattern = "\\.las$", full.names = TRUE, recursive = FALSE)
 
 # Outputs
-crowns_path <- "G:/Meine Ablage/data/400_5816/crowns/"
+crowns_path <- "G:/Meine Ablage/data/386_5818/crowns/"
 
 ### Calculate width to height ratio to eliminate elongated polygons
 ### Using bbox instead of oo-bbox
