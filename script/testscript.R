@@ -21,35 +21,23 @@ library(EBImage)
 font_add_google("Montserrat", "montserrat")
 showtext_auto()
 
-## Set working directory
-setwd(dirname(rstudioapi::getSourceEditorContext()$path))
-dop_tile <- "386_5818"
-## Set up the theme
-theme_set(
-  theme_ipsum_rc(base_family = "montserrat") + 
-    theme(
-      axis.title.x = element_blank(),
-      axis.title.y = element_blank(),
-      panel.grid = element_blank(),      
-      panel.background = element_blank(),
-      legend.position = "none",
-      axis.text.x = element_text(margin = margin(t = 5), vjust = 1),  # Move up
-      axis.text.y = element_text(margin = margin(r = 5), hjust = 1)   # Move right
-    )
-)
+mako_colors <- viridis(n = 7, option = "mako")
+
+# Define color variables
 theme.main <- "#009999"
 theme.secondary <- "#6b2e34"
+color_red <- "#F21B1B"
+color_blue <- "#3647EB"
+color_green <- "#00C87F"
+color_lightblue <- "#00E3EC"
+color_yellow <- "#FFF200"
+color_magenta <- "magenta"
+color_orange <- "#fc9a19"
+color_purple <- "#9146fa"
+color_cyan <- "#4baabf"
 
-# Dynamically construct the paths
-las_nobuild_path <- sprintf("G:/Meine Ablage/data/%s/LAS_no_buildings/3dm_33_386_5819_1_be_nobuild.las", dop_tile)
-tif_directory <- sprintf("G:/Meine Ablage/data/%s/sliced_imgs_2020S", dop_tile)
-test <- sprintf("G:/Meine Ablage/data/%s/sliced_imgs_2020S/3dm_33_386_5819_1_be_nobuild_8_5.tif", dop_tile)
-tree_cadaster_path <- "C:/tree-canopy/data/386_5818/GRIS/tree_cadaster_3dm_33_386_5819_1_be_nobuild_8_5.gpkg"
-tree_cadaster <- st_read(tree_cadaster_path)
-st_crs(tree_cadaster) <- 25833
 
 ## Helper Functions
-
 # Calculate width-to-height ratio of a polygon
 calculate_ratio <- function(polygon) {
   # Calculate the minimum bounding box
@@ -72,9 +60,87 @@ calculate_ratio_df <- function(df) {
     mutate(width_to_height_ratio = calculate_ratio(geometry))
 }
 
+# Convert spatial data to dataframe format (ensuring EPSG:25833)
+convert_sf_to_df <- function(sf_obj) {
+  sf_obj <- st_transform(sf_obj, crs = 25833)  # Ensure correct CRS
+  df <- as.data.frame(st_coordinates(sf_obj))  # Extract x, y
+  df <- df[complete.cases(df), ]  # Remove NAs
+  return(df)
+}
+
+# Convert polygon to dataframe
+convert_polygon_to_df <- function(sf_obj) {
+  sf_obj <- st_transform(sf_obj, crs = 25833)  # Ensure correct CRS
+  poly_df <- st_coordinates(sf_obj) %>%
+    as.data.frame() %>%
+    rename(x = X, y = Y) %>%
+    mutate(polygon_id = interaction(L1, L2, drop = TRUE))  # Ensure separate polygons
+  return(poly_df)
+}
+
+calculate_metrics <- function(detected_trees, method_name) {
+  intersections <- st_intersects(detected_trees, tree_cadaster_buffer, sparse = FALSE)
+  true_positives <- sum(rowSums(intersections) > 0)  # Trees intersecting with cadaster
+  false_positives <- nrow(detected_trees) - true_positives  # Trees outside cadaster buffer
+  
+  data.frame(
+    Method = method_name,
+    True_Positives = true_positives,
+    False_Positives = false_positives
+  )
+}
+
+# Custom crown metrics function
+custom_crown_metrics <- function(z, i) { 
+  metrics <- list(
+    # Height-Based Metrics
+    z_max = as.numeric(max(z, na.rm = TRUE)),        # Maximum height
+    z_mean = as.numeric(mean(z, na.rm = TRUE)),      # Mean height
+    z_sd = as.numeric(sd(z, na.rm = TRUE)),          # Height standard deviation
+    z_range = as.numeric(max(z, na.rm = TRUE) - min(z, na.rm = TRUE)),  # Height range
+    
+    # LiDAR Intensity Metrics
+    i_mean = as.numeric(mean(i, na.rm = TRUE)),      
+    i_max = as.numeric(max(i, na.rm = TRUE)),        
+    i_sd = as.numeric(sd(i, na.rm = TRUE)),          
+    i_median = as.numeric(median(i, na.rm = TRUE)),  
+    i_ratio = as.numeric(ifelse(max(i, na.rm = TRUE) > 0, mean(i, na.rm = TRUE) / max(i, na.rm = TRUE), NA))  
+  )
+  return(metrics)
+}
+
+
+# Main
+## Set working directory
+setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+dop_tile <- "386_5818"
+
+## Set up the theme
+theme_set(
+  theme_ipsum_rc(base_family = "montserrat") + 
+    theme(
+      panel.grid = element_blank(),      
+      panel.background = element_blank(),
+      legend.position = "none",
+      axis.text.x = element_text(margin = margin(t = 5), vjust = 1),
+      axis.text.y = element_text(margin = margin(r = 5), hjust = 1),
+      panel.grid.minor = element_blank()
+    )
+)
+theme.main <- "#009999"
+theme.secondary <- "#6b2e34"
+
+## Dynamically construct the paths
+las_nobuild_path <- sprintf("G:/Meine Ablage/data/%s/LAS_no_buildings/3dm_33_386_5819_1_be_nobuild.las", dop_tile)
+tif_directory <- sprintf("G:/Meine Ablage/data/%s/sliced_imgs_2020S", dop_tile)
+test <- sprintf("G:/Meine Ablage/data/%s/sliced_imgs_2020S/3dm_33_386_5819_1_be_nobuild_8_5.tif", dop_tile)
+tree_cadaster_path <- "C:/tree-canopy/data/386_5818/GRIS/tree_cadaster_3dm_33_386_5819_1_be_nobuild_8_5.gpkg"
+tree_cadaster <- st_read(tree_cadaster_path)
+st_crs(tree_cadaster) <- 25833
 
 ## Load and Filter LiDAR Data
 las_nobuild <- readLAS(las_nobuild_path)
+
 ## Load Raster Data
 ras <- rast(test)
 ras <- st_as_sf(read_stars(test))
@@ -84,7 +150,6 @@ ext <- st_bbox(ras)
 # Clip LiDAR Data to Raster Extent
 las_unfiltered <- clip_roi(las_nobuild, ext)
 las_above5 <- filter_poi(las_unfiltered, Z >= 5)
-
 
 if (dim(las_above5@data)[1] < 5){
   return()
@@ -100,7 +165,8 @@ if (dim(las_above5@data)[1] < 5){
 # with 8 points around the original one.
 # Points-to-raster algorithm with a resolution of 0.5 meters replacing each
 # point by a 20 cm radius circle of 8 points
-chm_p2r_05 <- rasterize_canopy(las_unfiltered, 0.5, p2r(subcircle = 0.2, na.fill = tin()), pkg = "terra")
+#chm_p2r_05 <- rasterize_canopy(las_unfiltered, 0.5, p2r(subcircle = 0.2, na.fill = tin()), pkg = "terra")
+chm_p2r_05 <- rasterize_canopy(las_unfiltered, 0.5, p2r(subcircle = 0, na.fill = tin()), pkg = "terra")
 
 ## Triangulation
 chm_dsmtin_base <- rasterize_canopy(las_unfiltered, res = 0.5, algorithm = dsmtin())
@@ -119,12 +185,13 @@ layers <- c(chm_p2r_05, chm_dsmtin_base, chm_dsmtin_5, chm_pitfree_subcirlce)
 names(layers) <- c("chm_p2r_05", "chm_dsmtin_base", "chm_dsmtin_5", "chm_pitfree_subcirlce")
 plot(layers)
 
-# GGPLOT
+# GGPLOT CHM methods
 # Convert each raster to a dataframe
 chm_p2r_05_df <- as.data.frame(chm_p2r_05, xy = TRUE)
 chm_dsmtin_base_df <- as.data.frame(chm_dsmtin_base, xy = TRUE)
 chm_dsmtin_5_df <- as.data.frame(chm_dsmtin_5, xy = TRUE)
 chm_dsmtin_10_df <- as.data.frame(chm_dsmtin_10, xy = TRUE)
+chm_pitfree_default_df <- as.data.frame(chm_pitfree, xy = TRUE)
 chm_pitfree_df <- as.data.frame(chm_pitfree_subcirlce, xy = TRUE)
 
 # Create individual plots for each raster
@@ -164,21 +231,30 @@ p4 <- ggplot(chm_dsmtin_10_df, aes(x = x, y = y, fill = Z)) +
   labs(x = "Easting (m)", y = "Northing (m)") +
   coord_equal()
 
-p5 <- ggplot(chm_pitfree_df, aes(x = x, y = y, fill = Z)) +
+p5 <- ggplot(chm_pitfree_default_df, aes(x = x, y = y, fill = Z)) +
   geom_tile() +
   scale_fill_viridis_c() +
   labs(title = "Pit-free", fill = "Z") +
   scale_x_continuous(breaks = function(x) c(min(x), max(x))) +
   scale_y_continuous(breaks = function(y) c(min(y), max(y))) + 
   labs(x = "Easting (m)", y = "Northing (m)") +
+  coord_equal()
+
+p6 <- ggplot(chm_pitfree_df, aes(x = x, y = y, fill = Z)) +
+  geom_tile() +
+  scale_fill_viridis_c() +
+  labs(title = "Pit-free subcircle", fill = "Z") +
+  scale_x_continuous(breaks = function(x) c(min(x), max(x))) +
+  scale_y_continuous(breaks = function(y) c(min(y), max(y))) + 
+  labs(x = "Easting (m)", y = "Northing (m)") +
   coord_equal() + 
   theme(legend.position = "right")
 
-combined_plot <- wrap_plots(p1, p2, p5, ncol = 3) +
+chm_plot <- wrap_plots(p1, p2, p5,p6,  ncol = 2) +
   plot_annotation(title = "Canopy Height Model (CHM)")  
 
 # Print the combined plot
-print(combined_plot)
+print(chm_plot)
 
 # -----------------------------------------------
 ### Locate trees
@@ -199,7 +275,7 @@ heights <- seq(-5,30,0.5)
 ws <- ws_deciduous(heights)
 plot(heights, ws, type = "l",  ylim = c(0,10))
 
-# Locating trees
+# Basemap
 plot(chm_pitfree_subcirlce, col = magma(50))
 
 ## Cadaster
@@ -207,86 +283,82 @@ plot(sf::st_geometry(tree_cadaster),  add = TRUE, pch = 18, col="#F21B1B", cex =
 
 ## LIDAR
 ttops_LAS_ws_8 <- locate_trees(las_unfiltered, lmf(ws = 8, hmin=5))
-plot(sf::st_geometry(ttops_LAS_ws_8), add = TRUE, pch = 1, col="#3647EB", cex = 2, lwd = 3) #blue
+plot(sf::st_geometry(ttops_LAS_ws_8), add = TRUE, pch = 1, col=color_blue, cex = 2, lwd = 3) #blue
 ttops_LAS_ws_deciduous <- locate_trees(las_unfiltered, lmf(ws_deciduous, hmin=5, shape = c("square"), ws_args = list("Z")))
-plot(sf::st_geometry(ttops_LAS_ws_deciduous), add = TRUE, pch = 2, col="#00C87F", cex = 2, lwd = 3) #blue
+plot(sf::st_geometry(ttops_LAS_ws_deciduous), add = TRUE, pch = 2, col=color_green, cex = 2, lwd = 3) #blue
 ttops_LAS_ws_combined <- locate_trees(las_unfiltered, lmf(ws_combined, hmin=5,  ws_args = list("Z")))
-plot(sf::st_geometry(ttops_LAS_ws_combined), add = TRUE, pch = 3, col="#ff0000", cex = 2, lwd = 3) #blue
+plot(sf::st_geometry(ttops_LAS_ws_combined), add = TRUE, pch = 3, col=color_red, cex = 2, lwd = 3) #blue
 
 ## CHM
+# TIN
 ttops_dsmtin_base <- locate_trees(chm_dsmtin_base, lmf(ws = 8, hmin=5))
-plot(sf::st_geometry(ttops_dsmtin_base), add = TRUE, pch = 1, col="#00E3EC", cex = 2, lwd = 3) #lightblue
+plot(sf::st_geometry(ttops_dsmtin_base), add = TRUE, pch = 1, col=color_green, cex = 2, lwd = 3) #lightblue
 ttops_dsmtin_deciduous <- locate_trees(chm_dsmtin_base, lmf(ws_deciduous, hmin=5))
-plot(sf::st_geometry(ttops_dsmtin_deciduous), add = TRUE, pch = 2, col="#00C87F", cex = 2, lwd = 3) #green
-ttops_pitfree_subcirlce_deciduous <- locate_trees(chm_pitfree_subcirlce, lmf(ws = ws_deciduous, hmin = 5,  ws_args = list("Z")))
-plot(sf::st_geometry(ttops_pitfree_subcirlce_deciduous), add = TRUE, pch = 3, col="#ff0000", cex = 2, lwd = 3) #green
+plot(sf::st_geometry(ttops_dsmtin_deciduous), add = TRUE, pch = 2, col=color_yellow, cex = 2, lwd = 3) #green
 
+# pit-free
+ttops_pitfree_subcirlce_combined  <- locate_trees(chm_pitfree_subcirlce, lmf(ws = ws_combined, hmin = 5,  ws_args = list("Z")))
+plot(sf::st_geometry(ttops_pitfree_subcirlce_combined), add = TRUE, pch = 2, col=color_yellow, cex = 2, lwd = 3) #green
+ttops_pitfree_subcirlce_deciduous <- locate_trees(chm_pitfree_subcirlce, lmf(ws = ws_deciduous, hmin = 5,  ws_args = list("Z")))
+plot(sf::st_geometry(ttops_pitfree_subcirlce_deciduous), add = TRUE, pch = 3, col=color_red, cex = 2, lwd = 3) #green
 
 ## compared to the Cadaster, these 2 extra tree tops are not even trees
 # CHM is faster because there are less data to process, 
 # but it is also more complex because the output depends on how the CHM has been built.
-## GGPLOT
-'Color Theme Swatches in Hex
-  .Primary-Colors-1-hex { color: #3647EB; }
-      .Primary-Colors-2-hex { color: #00E3EC; }
-          .Primary-Colors-3-hex { color: #F21B1B; } red
-              .Primary-Colors-4-hex { color: #00C87F; }
-                  .Primary-Colors-5-hex { color: #FFF200; } yellow'
 
+## GGPLOT Tree location
 chm_df <- as.data.frame(chm_pitfree_subcirlce, xy = TRUE)
 names(chm_df)[3] <- "value"
 
-# ✅ Get first and last coordinate values for axis breaks
+# Get first and last coordinate values for axis breaks
 x_breaks <- range(chm_df$x, na.rm = TRUE)
 y_breaks <- range(chm_df$y, na.rm = TRUE)
-
-# ✅ Convert spatial data to dataframe format (ensuring EPSG:25833)
-convert_sf_to_df <- function(sf_obj) {
-  sf_obj <- st_transform(sf_obj, crs = 25833)  # Ensure correct CRS
-  df <- as.data.frame(st_coordinates(sf_obj))  # Extract x, y
-  df <- df[complete.cases(df), ]  # Remove NAs
-  return(df)
-}
 
 tree_cadaster_df <- convert_sf_to_df(tree_cadaster)
 ttops_LAS_df <- convert_sf_to_df(ttops_LAS_ws_deciduous)
 ttops_dsmtin_df <- convert_sf_to_df(ttops_dsmtin_deciduous)
 ttops_pitfree_subcirlce_df <- convert_sf_to_df(ttops_pitfree_subcirlce_deciduous)
-
-# ✅ Base ggplot layer (CHM + Cadaster Trees) in UTM EPSG:25833
+ttops_pitfree_subcirlce_combined_df <- convert_sf_to_df(ttops_pitfree_subcirlce_combined)
+                                                      
+# Base ggplot layer (CHM + Cadaster Trees) in UTM EPSG:25833
 base_map <- ggplot() +
   geom_tile(data = chm_df, aes(x = x, y = y, fill = value)) +
   scale_fill_viridis_c(option = "mako", name = "CHM") +
-  geom_point(data = tree_cadaster_df, aes(x = X, y = Y), color = "#fc9a19", size = 4, shape = 18) +  # Convert to points
+  geom_point(data = tree_cadaster_df, aes(x = X, y = Y), color = color_orange, size = 4, shape = 18) +  # Convert to points
   scale_x_continuous(breaks = x_breaks) +
   scale_y_continuous(breaks = y_breaks) +
   coord_equal() +
   labs(x = "Easting (m)", y = "Northing (m)")
 
-# 🟦 Compare cadaster vs LIDAR detected trees
+# Compare cadaster vs LIDAR detected trees
 plot_lidar <- base_map +
-  geom_point(data = ttops_LAS_df, aes(x = X, y = Y), color = "#FFF200", size = 1, shape = 3,  stroke = 2) +
+  geom_point(data = ttops_LAS_df, aes(x = X, y = Y), color = color_yellow, size = 1, shape = 3,  stroke = 2) +
   labs(title = "Cadaster vs LiDAR Trees")
 
-# 🔵 Compare cadaster vs CHM detected trees (DSM-TIN)
+# Compare cadaster vs CHM detected trees (pitfree), ws_combined
 plot_chm_3 <- base_map +
-  geom_point(data = ttops_dsmtin_df, aes(x = X, y = Y), color = "#FFF200", size = 1, shape = 3,  stroke = 2) +
-  labs(title = "Cadaster vs CHM Trees (DSM-TIN 3)")
+  geom_point(data = ttops_pitfree_subcirlce_combined_df, aes(x = X, y = Y), color = color_yellow, size = 1, shape = 3,  stroke = 2) +
+  labs(title = "Cadaster vs CHM Trees, ws = combined")
 
-# 🟢 Compare cadaster vs CHM detected trees (pitfree)
+# Compare cadaster vs CHM detected trees (pitfree), ws_decidous
 plot_chm_5 <- base_map +
-  geom_point(data = ttops_pitfree_subcirlce_df, aes(x = X, y = Y), color = "#FFF200", size = 1, shape = 3,  stroke = 2) +
-  labs(title = "Cadaster vs CHM Trees (DSM-TIN 5)") +
-  theme(legend.position = "right")
+  geom_point(data = ttops_pitfree_subcirlce_df, aes(x = X, y = Y, color = "Detected Tree", shape = "Detected Tree"), size = 1, stroke = 2) +
+  geom_point(data = tree_cadaster_df, aes(x = X, y = Y, color = "Cadaster Tree", shape = "Cadaster Tree"), size = 4) +
+  scale_fill_viridis_c(option = "mako", name = "Height") +  # Rename fill legend
+  scale_color_manual(values = c("Cadaster Tree" = color_orange, "Detected Tree" = color_yellow), name = "Tree Type") +
+  scale_shape_manual(values = c("Cadaster Tree" = 18, "Detected Tree" = 3), name = "Tree Type") +
+  labs(title = "Cadaster vs CHM Trees, ws = deciduous") +
+  theme(legend.position = "right")  # Keep the legend on the right
 
-# 🎯 Arrange all plots with patchwork (3 columns layout)
-combined_plot <- (plot_lidar | plot_chm_3 | plot_chm_5)
+# Arrange all plots with patchwork (3 columns layout)
+treetop_plot <- (plot_lidar | plot_chm_3 | plot_chm_5)
 
-# ✅ Print the fixed combined plot
-print(combined_plot)
+# Print the fixed combined plot
+print(treetop_plot)
 
 # ---------------------------------------------
-# Postprocessing CHM: try to remove traffic signs and lamps
+
+## Postprocessing CHM: try to remove traffic signs and lamps
 chm_pitfree_subcirlce[chm_pitfree_subcirlce < 5] <- NA
 # Create a binary raster (e.g., threshold > 0 for tree areas)
 binary_chm <- chm_pitfree_subcirlce > 5
@@ -316,21 +388,21 @@ chm_pitfree_subcirlce_cleaned <- mask(chm_pitfree_subcirlce, small_patches_mask,
 ttops_pitfree_subcirlce_cleaned <- locate_trees(chm_pitfree_subcirlce_cleaned, lmf(ws_deciduous, hmin=5, shape = c("square")))
 
 terra::plot(rast(test))
-plot(sf::st_geometry(ttops_pitfree_subcirlce_cleaned), add = TRUE, pch = 3,lwd = 3, col="#FFF200") #yellow
+plot(sf::st_geometry(ttops_pitfree_subcirlce_cleaned), add = TRUE, pch = 3,lwd = 3, col=color_yellow) #yellow
 
-## GGPLOT
-# ✅ Convert raster to dataframe for ggplot
+## GGPLOT Treetops on satellite img
+# Convert raster to dataframe for ggplot
 raster_raw_df <- as.data.frame(rast(test), xy = TRUE)
 names(raster_raw_df)[3] <- "value"  # Standardize raster value column name
 
-# ✅ Convert `ttops_dsmtin_5_cleaned` to dataframe
+# Convert `ttops_dsmtin_5_cleaned` to dataframe
 ttops_pitfree_subcirlce_cleaned_df <- as.data.frame(st_coordinates(ttops_pitfree_subcirlce_cleaned))  # Extract x/y
 
-# ✅ Get first and last coordinate values for axis breaks
+# Get first and last coordinate values for axis breaks
 x_breaks <- range(raster_raw_df$x, na.rm = TRUE)
 y_breaks <- range(raster_raw_df$y, na.rm = TRUE)
 
-# ✅ Create ggplot with Raw Raster + Points
+# Create ggplot with Raw Raster + Points
 plot_raster_raw <- ggplot() +
   geom_spatial_rgb(
     data = test,
@@ -344,25 +416,25 @@ plot_raster_raw <- ggplot() +
   ) +
   scale_fill_identity(guide = "none") +  # ✅ Use the exact raster colors without modification
   geom_point(data = ttops_pitfree_subcirlce_cleaned_df, aes(x = X, y = Y), 
-             color = "#FFF200", size = 2, shape = 3, stroke = 2) +  # ✅ Yellow cross points
+             color = color_yellow, size = 2, shape = 3, stroke = 2) +  # ✅ Yellow cross points
   scale_y_continuous(breaks = y_breaks) +
   labs(title = "Tree tops (postprocessed)", x = "Easting (m)", y = "Northing (m)") +
   coord_equal() 
 
-# ✅ Print the plot
 print(plot_raster_raw)
+
 # ----------------------------------------------
-# Get the stats of treetop detection
+
+## Get the stats of treetop detection
 tree_cadaster <- tree_cadaster %>%
-  mutate(buffer_size = ws_deciduous(baumhoehe))  # Apply function
+  mutate(buffer_size = ws_deciduous(baumhoehe))
 
 # Create buffer zones
 tree_cadaster_buffer <- st_buffer(tree_cadaster, dist = tree_cadaster$buffer_size)
 
 plot(chm_pitfree_subcirlce_cleaned, col = mako(50))
-plot(st_geometry(tree_cadaster_buffer), col = "transparent", border = "red", add = T, main = "Tree Buffers Based on Height")
-plot(st_geometry(tree_cadaster), col = "red", pch = 16, add = TRUE)  # Add tree points
-
+plot(st_geometry(tree_cadaster_buffer), col = "transparent", border = color_red, add = T, main = "Tree Buffers Based on Height")
+plot(st_geometry(tree_cadaster), col = color_red, pch = 16, add = TRUE)
 # GGPLOT
 # Convert raster to data frame for ggplot
 #chm_df <- as.data.frame(chm_pitfree_subcirlce_cleaned, xy = TRUE)
@@ -379,32 +451,98 @@ tree_cadaster_buffer_poly <- st_coordinates(tree_cadaster_buffer_sf) %>%
   mutate(polygon_id = interaction(L1, L2, drop = TRUE))  # Correctly separates polygons and their rings
 
 
-# ✅ Create the base map
+# Create the base map
 base_map <- ggplot() +
   geom_tile(data = chm_df, aes(x = x, y = y, fill = value)) +
   geom_polygon(data = tree_cadaster_buffer_poly, 
                aes(x = x, y = y, group = polygon_id), 
                color = "red", fill = NA, linewidth = 0.7) +
-  geom_point(data = tree_cadaster_df, aes(x = X, y = Y), color = "red", size = 2) +
+  geom_point(data = tree_cadaster_df, aes(x = X, y = Y), color = color_red, size = 2) +
   scale_fill_viridis_c(option = "mako", name = "CHM") +
   scale_x_continuous(breaks = x_breaks) +
   scale_y_continuous(breaks = y_breaks) +
   labs(x = "Easting (m)", y = "Northing (m)", title = "Tree Buffers Based on Height")
 
-# ✅ Display the plot
+# Display the plot
 print(base_map)
 ## -------------------------------
-
+calculate_iou_per_tree <- function(detected_trees) {
+  detected_trees <- detected_trees %>%
+    mutate(buffer_size = ws_deciduous(Z))  # Assign buffer based on height
+  
+  detected_tree_buffer <- st_buffer(detected_trees, dist = detected_trees$buffer_size)
+  
+  iou_values <- sapply(1:nrow(detected_trees), function(i) {
+    detected_tree <- detected_tree_buffer[i, ]  # Extract single detected tree
+    nearest_cadaster <- st_nearest_feature(detected_tree, tree_cadaster_buffer)  # Find closest true tree
+    matched_cadaster <- tree_cadaster_buffer[nearest_cadaster, ]
+    
+    intersections <- st_intersection(detected_tree, matched_cadaster)
+    if (nrow(intersections) == 0) {
+      return(0)  # No intersection = IoU of 0
+    } else {
+      intersection_area <- sum(as.numeric(st_area(intersections)))
+      union_area <- sum(as.numeric(st_area(st_union(detected_tree, matched_cadaster))))
+      return(ifelse(union_area > 0, intersection_area / union_area, 0))
+    }
+  })
+}
 # Function to calculate true positives and false positives
 calculate_metrics <- function(detected_trees, method_name) {
-  intersections <- st_intersects(detected_trees, tree_cadaster_buffer, sparse = FALSE)
-  true_positives <- sum(rowSums(intersections) > 0)  # Trees intersecting with cadaster
-  false_positives <- nrow(detected_trees) - true_positives  # Trees outside cadaster buffer
+  # Create buffer around detected trees based on height
+  detected_trees <- detected_trees %>%
+    mutate(buffer_size = ws_deciduous(Z))
+  detected_tree_buffer <- st_buffer(detected_trees, dist = detected_trees$buffer_size)
   
+  # PER-TREE: Compute intersection and union areas (convert units to numeric)
+  mean_IoU <- mean(calculate_iou_per_tree(detected_trees), na.rm = TRUE)
+  median_IoU <- median(calculate_iou_per_tree(detected_trees), na.rm = TRUE)
+
+  # GLOBAL: Compute Global IoU by dissolving geometries
+  detected_tree_buffer_dissolved <- st_union(detected_tree_buffer)
+  tree_cadaster_buffer_dissolved <- st_union(tree_cadaster_buffer)
+  
+  global_intersection_area <- sum(as.numeric(st_area(st_intersection(detected_tree_buffer_dissolved, tree_cadaster_buffer_dissolved))))
+  global_union_area <- sum(as.numeric(st_area(st_union(detected_tree_buffer_dissolved, tree_cadaster_buffer_dissolved))))
+  global_IoU <- ifelse(global_union_area > 0, global_intersection_area / global_union_area, 0)
+  
+  # True Positives (detections overlapping with cadaster buffer)
+  intersections <- st_intersects(detected_trees, tree_cadaster_buffer, sparse = FALSE)
+  true_positives <- sum(rowSums(intersections) > 0)
+  
+  # False Positives (detected trees not intersecting with cadaster)
+  false_positives <- nrow(detected_trees) - true_positives
+  # False Negatives (cadaster trees not detected)
+  false_negatives <- nrow(tree_cadaster) - true_positives
+  
+  # Precision, Recall, and F1 Score
+  precision <- ifelse((true_positives + false_positives) > 0, true_positives / (true_positives + false_positives), 0)
+  recall <- ifelse((true_positives + false_negatives) > 0, true_positives / (true_positives + false_negatives), 0)
+  f1_score <- ifelse((precision + recall) > 0, 2 * (precision * recall) / (precision + recall), 0)
+  
+  # Deviation (Absolute & Relative)
+  count_cadaster <- nrow(tree_cadaster)
+  count_detected <- nrow(detected_trees)
+  absolute_deviation <- count_detected - count_cadaster
+  relative_deviation <- ifelse(count_cadaster > 0, (count_detected / count_cadaster) * 100, NA)
+  
+
   data.frame(
     Method = method_name,
     True_Positives = true_positives,
-    False_Positives = false_positives
+    False_Positives = false_positives,
+    False_Negatives = false_negatives,
+    Precision = precision,
+    Recall = recall,
+    F1_Score = f1_score,
+    mean_IoU = mean_IoU,
+    median_IoU = median_IoU,
+    Global_IoU = global_IoU,
+    Count_Cadaster = count_cadaster,
+    Count_Detected = count_detected,
+    Absolute_Deviation = absolute_deviation,
+    Relative_Deviation = relative_deviation
+    
   )
 }
 
@@ -417,26 +555,56 @@ results <- bind_rows(
   calculate_metrics(ttops_pitfree_subcirlce_cleaned, "CHM pitfree ws=d [cleaned]")
 )
 
+
 # Sort results by True Positives in descending order
-results_sorted <- results %>%
-  arrange(desc(True_Positives))
+#results_sorted <- results %>%
+#  arrange(desc(True_Positives))
 
 # Convert Method to a factor with levels in sorted order
-results_sorted$Method <- factor(results_sorted$Method, levels = results_sorted$Method)
+results$Method <- factor(results$Method, levels = results$Method)
 
-# Reshape data for ggplot
-results_long <- results_sorted %>%
-  pivot_longer(cols = c(True_Positives, False_Positives), names_to = "Category", values_to = "Count")
+# Convert data to long format
+results_long <- results %>%
+  pivot_longer(cols = c(mean_IoU, Global_IoU), 
+               names_to = "IoU_Type", 
+               values_to = "IoU_Score") %>%
+  mutate(IoU_Type = recode(IoU_Type, "mean_IoU" = "Per-Tree IoU", "Global_IoU" = "Global IoU"))
 
-# Plot Intersection Count with False Positives
-ggplot(results_long, aes(x = Method, y = Count, fill = Category)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  labs(title = "Intersection Count with Cadaster",
-       x = "Detection Method",
-       y = "Count") +
-  scale_fill_manual(values = c("True_Positives" = theme.main, "False_Positives" = theme.secondary)) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# IoU bar per tree vs Global
+iou_plot <- ggplot(results_long, aes(x = Method, y = IoU_Score, fill = IoU_Type)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  scale_fill_manual(values = c("Per-Tree IoU" = mako_colors[3], "Global IoU" = mako_colors[5])) +  # Improved colors
+  labs(title = "Comparison of IoU Metrics",
+       x = "Method",
+       y = "IoU Score",
+       fill = "IoU Type") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title.x = element_blank(),
+    legend.position = "right",
+    panel.grid.major.y = element_line(color = "gray80", linetype = "dashed"),  # Subtle grid
+    panel.grid.minor = element_blank()
+  )
 
+# Precesion-Recall plot
+precision_recall_plot <- ggplot(results, aes(x = Recall, y = Precision, label = Method, color = F1_Score)) +
+  geom_point(size = 5) + 
+  geom_text(color = "black", size = 4, vjust = -1, hjust = 0.5, family = "montserrat") +  # Ensuring font consistency
+  scale_color_viridis_c(option = "mako", begin = 0.2, end = 0.9, name = "F1 Score") +  # Use "mako" with adjusted range
+  labs(title = "Precision-Recall Tradeoff",
+       x = "Recall",
+       y = "Precision") +
+  theme(
+    legend.position = "right",
+    legend.margin = margin(l = 30)
+  ) +
+  coord_equal(clip = "off")
+
+# Arrange all plots side by side
+eval_plot <-  iou_plot | precision_recall_plot
+
+# Display the final combined plot
+print(eval_plot)
 # -------------------------------------
 # Count of trees detected
 # Calculate total detected tree count for each method
@@ -475,15 +643,21 @@ ggplot(total_counts, aes(x = Method, y = Absolute_Deviation, fill = Absolute_Dev
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 # Plot: Percentage Deviation
-ggplot(total_counts, aes(x = Method, y = Percentage_Deviation, fill = Percentage_Deviation > 0)) +
+plot_percentage_deviation <- ggplot(total_counts, aes(x = Method, y = Percentage_Deviation, fill = Percentage_Deviation > 0)) +
   geom_bar(stat = "identity") +
   geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
   labs(title = "Tree Count: Percentage Deviation from Cadaster",
        x = "Detection Method",
-       y = "Percentage Deviation (%)",
+       y = "Deviation (%)",
        fill = "Deviation") +
   scale_fill_manual(values = c("TRUE" = theme.main, "FALSE" = theme.secondary)) +  # Green for overestimation, Red for underestimation
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.title.y = element_text(angle = 90, hjust = 1))
+
+# Arrange all plots side by side
+eval_plot <-  plot_percentage_deviation
+
+# Display the final combined plot
+print(eval_plot)
 #--------------------------------------
 
 ## OUTCOME:
@@ -496,25 +670,7 @@ ttops <- ttops_pitfree_subcirlce_cleaned
 ### Tree Segmentation
 # -----------------------------------------------
 plot(chm)
-plot(sf::st_geometry(ttops), add = TRUE, pch = 3, col="#ff0000", cex = 2, lwd = 3) #green
-
-custom_crown_metrics <- function(z, i) { 
-  metrics <- list(
-    # Height-Based Metrics
-    z_max = as.numeric(max(z, na.rm = TRUE)),        # Maximum height
-    z_mean = as.numeric(mean(z, na.rm = TRUE)),      # Mean height
-    z_sd = as.numeric(sd(z, na.rm = TRUE)),          # Height standard deviation
-    z_range = as.numeric(max(z, na.rm = TRUE) - min(z, na.rm = TRUE)),  # Height range
-    
-    # LiDAR Intensity Metrics
-    i_mean = as.numeric(mean(i, na.rm = TRUE)),      
-    i_max = as.numeric(max(i, na.rm = TRUE)),        
-    i_sd = as.numeric(sd(i, na.rm = TRUE)),          
-    i_median = as.numeric(median(i, na.rm = TRUE)),  
-    i_ratio = as.numeric(ifelse(max(i, na.rm = TRUE) > 0, mean(i, na.rm = TRUE) / max(i, na.rm = TRUE), NA))  
-  )
-  return(metrics)
-}
+plot(sf::st_geometry(ttops), add = TRUE, pch = 3, col=color_red, cex = 2, lwd = 3) #green
 ccm = ~custom_crown_metrics(z = Z, i = Intensity)
 
 ## Dalponte Method (raster-based)
@@ -534,8 +690,8 @@ plot(crowns_dalponte["z_max"], main = "x_max")
 #crowns <- crowns[crowns$width_to_height_ratio > 0.5 & crowns$width_to_height_ratio < 1.5 ,]
 plot(chm, col = mako(50))
 #plot(sf::st_geometry(ttops), add = TRUE, pch = 3)
-plot(crowns_dalponte["z_max"], col = "transparent", border = "#4baabf", lwd = 3, add = TRUE)
-plot(sf::st_geometry(ttops), add = TRUE, pch = 3, col="#ff0000", cex = 2, lwd = 3)
+plot(crowns_dalponte["z_max"], col = "transparent", border = color_cyan, lwd = 3, add = TRUE)
+plot(sf::st_geometry(ttops), add = TRUE, pch = 3, col=color_red, cex = 2, lwd = 3)
 
 ## Silva method
 #terra::plot(rast(test))
@@ -553,8 +709,8 @@ crowns_silva <- crown_metrics(las_silva, func = ccm, geom = "concave")
 #st_write(crowns_silva, "crowns_silva.geojson", delete_dsn = T)
 plot(chm, col = magma(50))
 #plot(crowns_silva["convhull_area"], col = NA, border=6, add = TRUE)
-plot(crowns_silva["i_mean"], col="transparent", border = "#9146fa", lwd = 3, add = TRUE)
-plot(sf::st_geometry(ttops), add = TRUE, pch = 3, col="#ff0000",  cex = 2,lwd = 2)
+plot(crowns_silva["i_mean"], col="transparent", border = color_cyan, lwd = 3, add = TRUE)
+plot(sf::st_geometry(ttops), add = TRUE, pch = 3, col=color_red,  cex = 2,lwd = 2)
 
 ## GGPLOT Segmentation
 convert_polygon_to_df <- function(sf_obj) {
@@ -573,7 +729,7 @@ crowns_silva_df <- convert_polygon_to_df(crowns_silva)
 base_map <- ggplot() +
   geom_tile(data = chm_df, aes(x = x, y = y, fill = value)) +
   scale_fill_viridis_c(option = "mako", name = "CHM") +
-  geom_point(data = tree_cadaster_df, aes(x = X, y = Y), color = "#fc9a19", size = 4, shape = 18) +
+  geom_point(data = tree_cadaster_df, aes(x = X, y = Y), color = color_orange, size = 4, shape = 18) +
   scale_x_continuous(breaks = x_breaks) +
   scale_y_continuous(breaks = y_breaks) +
   coord_equal() +
@@ -582,15 +738,15 @@ base_map <- ggplot() +
 # Dalponte method visualization
 plot_dalponte <- base_map +
   geom_polygon(data = crowns_dalponte_df, aes(x = x, y = y, group = polygon_id),
-               color = "#4baabf", fill = NA, linewidth = 0.8) +
-  geom_point(data = ttops_LAS_df, aes(x = X, y = Y), color = "red", shape = 3, size = 3) +
+               color = color_magenta, fill = NA, linewidth = 0.8) +
+  geom_point(data = ttops_LAS_df, aes(x = X, y = Y), color = color_red, shape = 3, size = 3) +
   labs(title = "Dalponte 2016 Segmentation")
 
 # Silva method visualization
 plot_silva <- base_map +
   geom_polygon(data = crowns_silva_df, aes(x = x, y = y, group = polygon_id),
-               color = "#9146fa", fill = NA, linewidth = 0.8) +
-  geom_point(data = ttops_LAS_df, aes(x = X, y = Y), color = "red", shape = 3, size = 3) +
+               color = color_magenta, fill = NA, linewidth = 0.8) +
+  geom_point(data = ttops_LAS_df, aes(x = X, y = Y), color = color_red, shape = 3, size = 3) +
   labs(title = "Silva 2016 Segmentation")
 
 # Arrange both plots side by side
@@ -598,4 +754,6 @@ combined_plot <- (plot_dalponte | plot_silva)
 
 # Print the fixed combined plot
 print(combined_plot)
+
+
 
