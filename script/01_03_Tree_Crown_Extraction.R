@@ -64,40 +64,60 @@ extract_crowns <- function(las_clip, bbox) {
   }
   print("extracting crowns... LAS present!")
 
-  # algorithm for digital surface model computation based on a points-to-raster method: 
-  # for each pixel of the output raster the function attributes the height 
-  # of the highest point found. The subcircle tweak replaces each point 
-  # with 8 points around the original one.
-  # Points-to-raster algorithm with a resolution of 0.5 meters replacing each
   # point by a 20 cm radius circle of 8 points
-  chm_p2r_05 <- rasterize_canopy(las_aoi, 0.5, p2r(subcircle = 0.2), pkg = "terra")
-  
+  #chm_p2r_05 <- rasterize_canopy(las_aoi, 0.5, p2r(subcircle = 0.2), pkg = "terra")
+  chm_pitfree_subcirlce <- rasterize_canopy(las_unfiltered, res = 0.5, pitfree( thresholds = c(0, 2, 5, 10, 15), subcircle = 0.15))
   # Calculate focal ("moving window") values for each cell: smoothing steps with a median filter
-  kernel <- matrix(1,3,3)
-  chm_p2r_05_smoothed <- terra::focal(chm_p2r_05, w = kernel, fun = median, na.rm = TRUE)
+  #kernel <- matrix(1,3,3)
+  #chm_p2r_05_smoothed <- terra::focal(chm_p2r_05, w = kernel, fun = median, na.rm = TRUE)
+  ## Postprocessing CHM: try to remove traffic signs and lamps
+  chm_pitfree_subcirlce[chm_pitfree_subcirlce < 5] <- NA
+  # Create a binary raster (e.g., threshold > 0 for tree areas)
+  binary_chm <- chm_pitfree_subcirlce > 5
+  
+  # Identify connected components (clusters)
+  patches_chm <- patches(binary_chm, directions = 8, zeroAsNA = FALSE)
+  
+  # Calculate patch sizes
+  patch_sizes <- freq(patches_chm) # Frequency table of patch IDs
+  small_patches <- patch_sizes$value[patch_sizes$count <= 5] # IDs of small patches
+  
+  # Create a mask for small patches
+  small_patches_mask <- patches_chm %in% small_patches
+  
+  # Remove small patches by masking them out
+  chm_pitfree_subcirlce_cleaned <- mask(chm_pitfree_subcirlce, small_patches_mask, maskvalue = TRUE)
+  
+  ## Local Maximum Filter with variable windows size
+  # Function for Deciduous Trees
+  ws_deciduous <- function(H) {
+    return(3.09632 + 0.00895* (H^2))
+  }
   
   # Use dalponte algorithm
-  #ttops_chm_p2r_05_smoothed <- locate_trees(chm_p2r_05_smoothed, lmf((ws=8))) # using a greater window size
-  #algo <- dalponte2016(chm_p2r_05_smoothed, ttops_chm_p2r_05_smoothed)
-  #las_tree <- segment_trees(las_aoi, algo)
-  #crowns <- crown_metrics(las_tree, func = .stdtreemetrics, geom = "convex")
-  #crowns <- crowns[crowns$convhull_area > 1,]
+  ttops_pitfree_subcirlce_cleaned <- locate_trees(chm_pitfree_subcirlce_cleaned, lmf(ws_deciduous, hmin=5, shape = c("square")))
+  algo_dalponte <- dalponte2016(chm, ttops,   th_tree = 2,    # Minimum tree height
+                                th_seed = 0.45, # Seed threshold for initial growth
+                                th_cr = 0.65,   # Crown merging threshold
+                                max_cr = 20)    # Max crown diameter (20 pixels = 10m for 0.5m CHM)
+  las_dalponte <- segment_trees(las_unfiltered, algo_dalponte)
+  crowns_dalponte <- crown_metrics(las_dalponte, func = ccm, geom = "concave")
   
   # Use Silva algorithm
-  ttops_chm_p2r_05_smoothed <- locate_trees(chm_p2r_05_smoothed, lmf(8))
-  algo <- silva2016(chm_p2r_05_smoothed, ttops_chm_p2r_05_smoothed)
-  las_tree <- segment_trees(las_aoi, algo)
+  #ttops_chm_p2r_05_smoothed <- locate_trees(chm_p2r_05_smoothed, lmf(8))
+  #algo <- silva2016(chm_p2r_05_smoothed, ttops_chm_p2r_05_smoothed)
+  #las_tree <- segment_trees(las_aoi, algo)
   #crowns <- crown_metrics(las_tree, func = .stdtreemetrics, geom = "convex")
   #crowns <- crowns[crowns$convhull_area > 10,]
   #crowns <- calculate_ratio_df(crowns)
   #crowns <- crowns[crowns$width_to_height_ratio > 0.5 & crowns$width_to_height_ratio < 1.5 ,]
-  ccm = ~custom_crown_metrics(z = Z, i = Intensity)
-  crowns <- crown_metrics(las_tree, func = ccm, geom = "concave")
-  crowns <- crowns[crowns$z_sd > 0.5,]
+  #ccm = ~custom_crown_metrics(z = Z, i = Intensity)
+  #crowns <- crown_metrics(las_tree, func = ccm, geom = "concave")
+  #crowns <- crowns[crowns$z_sd > 0.5,]
   #crowns <- calculate_ratio_df(crowns)
   #crowns <- crowns[crowns$width_to_height_ratio > 0.5 & crowns$width_to_height_ratio < 1.5 ,]
-  crowns <- st_simplify(crowns, dTolerance = 0.3)
   
+  crowns <- st_simplify(crowns_dalponte, dTolerance = 0.3)
   return(crowns)
 }
 
