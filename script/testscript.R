@@ -24,18 +24,29 @@ showtext_auto()
 mako_colors <- viridis(n = 7, option = "mako")
 
 # Define color variables
-theme.main <- "#009999"
-theme.secondary <- "#6b2e34"
-color_red <- "#F21B1B"
-color_blue <- "#3647EB"
-color_green <- "#00C87F"
-color_lightblue <- "#00E3EC"
-color_yellow <- "#FFF200"
-color_magenta <- "magenta"
-color_orange <- "#fc9a19"
-color_purple <- "#9146fa"
-color_cyan <- "#4baabf"
+theme.main <- mako_colors[5]
+theme.secondary <- mako_colors[2]
+#color_red <- "#F21B1B"
+#color_blue <- "#3647EB"
+#color_green <- "#00C87F"
+#color_lightblue <- "#00E3EC"
+#color_yellow <- "#FFF200"
+#color_magenta <- "magenta"
+#color_orange <- "#fc9a19"
+#color_purple <- "#9146fa"
+#color_cyan <- "#4baabf"
 
+color_red = "#ac3a38"        # Complementary red
+color_blue = "#3870ac"       # Analogous blue
+color_green = "#38ac74"      # Analogous green
+color_lightblue = "#38aaac"  # Base color
+color_yellow = "#FFF200"     # Triadic yellow-green
+color_magenta = "#ac38aa"    # Triadic magenta
+color_orange = "#fc9a19"     # Existing high-visibility orange
+color_purple = "#9146fa"     # Existing high-visibility purple
+color_cyan = "#4baabf"       # Existing high-visibility cyan
+
+getwd()
 
 ## Helper Functions
 # Calculate width-to-height ratio of a polygon
@@ -127,8 +138,6 @@ theme_set(
       panel.grid.minor = element_blank()
     )
 )
-theme.main <- "#009999"
-theme.secondary <- "#6b2e34"
 
 ## Dynamically construct the paths
 las_nobuild_path <- sprintf("G:/Meine Ablage/data/%s/LAS_no_buildings/3dm_33_386_5819_1_be_nobuild.las", dop_tile)
@@ -194,68 +203,34 @@ chm_dsmtin_10_df <- as.data.frame(chm_dsmtin_10, xy = TRUE)
 chm_pitfree_default_df <- as.data.frame(chm_pitfree, xy = TRUE)
 chm_pitfree_df <- as.data.frame(chm_pitfree_subcirlce, xy = TRUE)
 
-# Create individual plots for each raster
-p1 <- ggplot(chm_p2r_05_df, aes(x = x, y = y, fill = Z)) +
-  geom_tile() +
-  scale_fill_viridis_c() +
-  labs(title = "Point to raster", fill = "Z") +
-  scale_x_continuous(breaks = function(x) c(min(x), max(x))) +
-  scale_y_continuous(breaks = function(y) c(min(y), max(y))) + 
-  labs(x = "Easting (m)", y = "Northing (m)") +
-  coord_equal()
+create_chm_plot <- function(df, title) {
+  ggplot(df, aes(x = x, y = y, fill = Z)) +
+    geom_tile() +
+    scale_fill_viridis_c(option = "mako") +
+    labs(title = title, fill = "Z", x = "Easting (m)", y = "Northing (m)") +
+    scale_x_continuous(breaks = function(x) c(min(x), max(x))) +
+    scale_y_continuous(breaks = function(y) c(min(y), max(y))) +
+    coord_equal()
+}
 
-p2 <- ggplot(chm_dsmtin_base_df, aes(x = x, y = y, fill = Z)) +
-  geom_tile() +
-  scale_fill_viridis_c() +
-  labs(title = "Triangulation over 0 m", fill = "Z") +
-  scale_x_continuous(breaks = function(x) c(min(x), max(x))) +
-  scale_y_continuous(breaks = function(y) c(min(y), max(y))) + 
-  labs(x = "Easting (m)", y = "Northing (m)") +
-  coord_equal()
+# Generate plots
+p1 <- create_chm_plot(chm_p2r_05_df, "Point to raster")
+p2 <- create_chm_plot(chm_dsmtin_base_df, "Triangulation")
+p3 <- create_chm_plot(chm_dsmtin_5_df, "Triangulation over 5 m")
+p4 <- create_chm_plot(chm_dsmtin_10_df, "Triangulation")
+p5 <- create_chm_plot(chm_pitfree_default_df, "Pit-free")
+p6 <- create_chm_plot(chm_pitfree_df, "Pit-free subcircle")
 
-p3 <- ggplot(chm_dsmtin_5_df, aes(x = x, y = y, fill = Z)) +
-  geom_tile() +
-  scale_fill_viridis_c() +
-  labs(title = "Triangulation over 5 m", fill = "Z") +
-  scale_x_continuous(breaks = function(x) c(min(x), max(x))) +
-  scale_y_continuous(breaks = function(y) c(min(y), max(y))) + 
-  labs(x = "Easting (m)", y = "Northing (m)") +
-  coord_equal()
-
-p4 <- ggplot(chm_dsmtin_10_df, aes(x = x, y = y, fill = Z)) +
-  geom_tile() +
-  scale_fill_viridis_c() +
-  labs(title = "Triangulation over 10 m", fill = "Z") +
-  scale_x_continuous(breaks = function(x) c(min(x), max(x))) +
-  scale_y_continuous(breaks = function(y) c(min(y), max(y))) +   
-  labs(x = "Easting (m)", y = "Northing (m)") +
-  coord_equal()
-
-p5 <- ggplot(chm_pitfree_default_df, aes(x = x, y = y, fill = Z)) +
-  geom_tile() +
-  scale_fill_viridis_c() +
-  labs(title = "Pit-free", fill = "Z") +
-  scale_x_continuous(breaks = function(x) c(min(x), max(x))) +
-  scale_y_continuous(breaks = function(y) c(min(y), max(y))) + 
-  labs(x = "Easting (m)", y = "Northing (m)") +
-  coord_equal()
-
-p6 <- ggplot(chm_pitfree_df, aes(x = x, y = y, fill = Z)) +
-  geom_tile() +
-  scale_fill_viridis_c() +
-  labs(title = "Pit-free subcircle", fill = "Z") +
-  scale_x_continuous(breaks = function(x) c(min(x), max(x))) +
-  scale_y_continuous(breaks = function(y) c(min(y), max(y))) + 
-  labs(x = "Easting (m)", y = "Northing (m)") +
-  coord_equal() + 
-  theme(legend.position = "right")
-
-chm_plot <- wrap_plots(p1, p2, p5,p6,  ncol = 2) +
-  plot_annotation(title = "Canopy Height Model (CHM)")  
+# Arrange plots in patchwork
+chm_plot <- wrap_plots(p1, p2, p5, p6, ncol = 2) + 
+  plot_layout(guides = 'collect') &  # Aligns legends and reduces spacing
+  theme(plot.margin = margin(0, 0, 0, 0))  # Removes large gaps
 
 # Print the combined plot
 print(chm_plot)
 
+# 🚀 Save with larger fonts
+#ggsave("plots/chm_plot.png", plot = chm_plot, width = 12, height = 8, dpi = 360, scale = 2)
 # -----------------------------------------------
 ### Locate trees
 # -----------------------------------------------
@@ -344,17 +319,18 @@ plot_chm_3 <- base_map +
 plot_chm_5 <- base_map +
   geom_point(data = ttops_pitfree_subcirlce_df, aes(x = X, y = Y, color = "Detected Tree", shape = "Detected Tree"), size = 1, stroke = 2) +
   geom_point(data = tree_cadaster_df, aes(x = X, y = Y, color = "Cadaster Tree", shape = "Cadaster Tree"), size = 4) +
-  scale_fill_viridis_c(option = "mako", name = "Height") +  # Rename fill legend
+  scale_fill_viridis_c(option = "mako", name = "Height (m)") + 
   scale_color_manual(values = c("Cadaster Tree" = color_orange, "Detected Tree" = color_yellow), name = "Tree Type") +
   scale_shape_manual(values = c("Cadaster Tree" = 18, "Detected Tree" = 3), name = "Tree Type") +
   labs(title = "Cadaster vs CHM Trees, ws = deciduous") +
-  theme(legend.position = "right")  # Keep the legend on the right
+  theme(legend.position = "right") 
 
 # Arrange all plots with patchwork (3 columns layout)
 treetop_plot <- (plot_lidar | plot_chm_3 | plot_chm_5)
 
 # Print the fixed combined plot
 print(treetop_plot)
+#ggsave("plots/treetop_plot.png", plot = treetop_plot, width = 12, height = 8, dpi = 360, scale = 1)
 
 # ---------------------------------------------
 
@@ -422,6 +398,7 @@ plot_raster_raw <- ggplot() +
   coord_equal() 
 
 print(plot_raster_raw)
+#ggsave("plots/treetop_postprocessed_satellite_plot.png", plot = plot_raster_raw, width = 12, height = 8, dpi = 100, scale = 1)
 
 # ----------------------------------------------
 
@@ -573,7 +550,7 @@ results_long <- results %>%
 # IoU bar per tree vs Global
 iou_plot <- ggplot(results_long, aes(x = Method, y = IoU_Score, fill = IoU_Type)) +
   geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
-  scale_fill_manual(values = c("Per-Tree IoU" = mako_colors[3], "Global IoU" = mako_colors[5])) +  # Improved colors
+  scale_fill_manual(values = c("Per-Tree IoU" = theme.secondary, "Global IoU" = theme.main)) +  # Improved colors
   labs(title = "Comparison of IoU Metrics",
        x = "Method",
        y = "IoU Score",
@@ -587,7 +564,7 @@ iou_plot <- ggplot(results_long, aes(x = Method, y = IoU_Score, fill = IoU_Type)
   )
 
 # Precesion-Recall plot
-precision_recall_plot <- ggplot(results, aes(x = Recall, y = Precision, label = Method, color = F1_Score)) +
+precision_recall_ttops_plot <- ggplot(results, aes(x = Recall, y = Precision, label = Method, color = F1_Score)) +
   geom_point(size = 5) + 
   geom_text(color = "black", size = 4, vjust = -1, hjust = 0.5, family = "montserrat") +  # Ensuring font consistency
   scale_color_viridis_c(option = "mako", begin = 0.2, end = 0.9, name = "F1 Score") +  # Use "mako" with adjusted range
@@ -598,13 +575,16 @@ precision_recall_plot <- ggplot(results, aes(x = Recall, y = Precision, label = 
     legend.position = "right",
     legend.margin = margin(l = 30)
   ) +
-  coord_equal(clip = "off")
+  coord_equal(ratio=2,clip = "off")
 
 # Arrange all plots side by side
-eval_plot <-  iou_plot | precision_recall_plot
+eval_plot <-  iou_plot | precision_recall_ttops_plot
 
 # Display the final combined plot
 print(eval_plot)
+print(precision_recall_ttops_plot)
+#ggsave("plots/precision_recall_ttops_plot.png", plot = precision_recall_ttops_plot, width = 12, height = 8, dpi = 100, scale = 1)
+
 # -------------------------------------
 # Count of trees detected
 # Calculate total detected tree count for each method
@@ -676,8 +656,8 @@ ccm = ~custom_crown_metrics(z = Z, i = Intensity)
 ## Dalponte Method (raster-based)
 algo_dalponte <- dalponte2016(chm, ttops,   th_tree = 2,    # Minimum tree height
                               th_seed = 0.45, # Seed threshold for initial growth
-                              th_cr = 0.55,   # Crown merging threshold
-                              max_cr = 20     # Max crown diameter (20 pixels = 10m for 0.5m CHM)
+                              th_cr = 0.65,   # Crown merging threshold
+                              max_cr = 20    # Max crown diameter (20 pixels = 10m for 0.5m CHM)
 )
 las_dalponte <- segment_trees(las_unfiltered, algo_dalponte)
 
@@ -728,8 +708,19 @@ crowns_silva_df <- convert_polygon_to_df(crowns_silva)
 # Base ggplot layer (CHM + Cadaster Trees) in UTM EPSG:25833
 base_map <- ggplot() +
   geom_tile(data = chm_df, aes(x = x, y = y, fill = value)) +
-  scale_fill_viridis_c(option = "mako", name = "CHM") +
-  geom_point(data = tree_cadaster_df, aes(x = X, y = Y), color = color_orange, size = 4, shape = 18) +
+  scale_fill_viridis_c(option = "mako", name = "Height (m)") +
+  #geom_point(data = tree_cadaster_df, aes(x = X, y = Y), color = color_orange, size = 4, shape = 18) +
+  scale_x_continuous(breaks = x_breaks) +
+  scale_y_continuous(breaks = y_breaks) +
+  coord_equal() +
+  labs(x = "Easting (m)", y = "Northing (m)")
+
+
+# Dalponte method visualization
+# Base ggplot layer (CHM + Cadaster Trees) in UTM EPSG:25833
+base_map <- ggplot() +
+  geom_tile(data = chm_df, aes(x = x, y = y, fill = value)) +
+  scale_fill_viridis_c(option = "mako", name = "Height (m)") +
   scale_x_continuous(breaks = x_breaks) +
   scale_y_continuous(breaks = y_breaks) +
   coord_equal() +
@@ -738,22 +729,144 @@ base_map <- ggplot() +
 # Dalponte method visualization
 plot_dalponte <- base_map +
   geom_polygon(data = crowns_dalponte_df, aes(x = x, y = y, group = polygon_id),
-               color = color_magenta, fill = NA, linewidth = 0.8) +
-  geom_point(data = ttops_LAS_df, aes(x = X, y = Y), color = color_red, shape = 3, size = 3) +
+               color = color_magenta, fill = NA, linewidth = 1) +
+  geom_point(data = ttops_LAS_df, aes(x = X, y = Y), color = color_yellow, shape = 3, size = 1, stroke = 2) +
+  geom_point(data = tree_cadaster_df, aes(x = X, y = Y), color = color_orange, size = 4, shape = 18) +
   labs(title = "Dalponte 2016 Segmentation")
 
-# Silva method visualization
+# Silva method visualization (Fixing the legend issue)
 plot_silva <- base_map +
   geom_polygon(data = crowns_silva_df, aes(x = x, y = y, group = polygon_id),
-               color = color_magenta, fill = NA, linewidth = 0.8) +
-  geom_point(data = ttops_LAS_df, aes(x = X, y = Y), color = color_red, shape = 3, size = 3) +
+               color = color_magenta, fill = NA, linewidth = 1) +
+  geom_point(data = tree_cadaster_df, aes(x = X, y = Y, color = "Cadaster Tree", shape = "Cadaster Tree"), size = 4, shape = 18) +
+  geom_point(data = ttops_LAS_df, aes(x = X, y = Y, color = "Detected Tree", shape = "Detected Tree"),shape = 3, size = 1, stroke = 2) +
+  scale_color_manual(name = "Tree Type", values = c("Cadaster Tree" = color_orange, "Detected Tree" = color_yellow)) +
+  scale_shape_manual(name = "Tree Type", values = c("Cadaster Tree" = 18, "Detected Tree" = 3)) + 
+  theme(legend.position = "right")+
   labs(title = "Silva 2016 Segmentation")
 
+
 # Arrange both plots side by side
-combined_plot <- (plot_dalponte | plot_silva)
+combined_plot <- plot_dalponte + plot_silva
 
 # Print the fixed combined plot
 print(combined_plot)
+#ggsave("plots/dalponte_silva_plot.png", plot = combined_plot, width = 12, height = 8, dpi = 100, scale = 1)
+
+# Evaluation
+calculate_iou_for_crowns <- function(segmented_crowns, method_name, tree_cadaster_buffer) {
+  # Compute intersection and union areas for per-crown IoU
+  intersections <- st_intersection(segmented_crowns, tree_cadaster_buffer)
+  intersection_area <- sum(as.numeric(st_area(intersections)), na.rm = TRUE)
+  
+  union_shapes <- st_union(st_union(segmented_crowns), st_union(tree_cadaster_buffer))
+  union_area <- sum(as.numeric(st_area(union_shapes)), na.rm = TRUE)
+  
+  per_tree_iou <- ifelse(union_area > 0, intersection_area / union_area, 0)
+  
+  # Global IoU: dissolve all crowns and cadaster trees
+  segmented_crowns_dissolved <- st_union(segmented_crowns)
+  tree_cadaster_dissolved <- st_union(tree_cadaster_buffer)
+  
+  global_intersection_area <- sum(as.numeric(st_area(st_intersection(segmented_crowns_dissolved, tree_cadaster_dissolved))))
+  global_union_area <- sum(as.numeric(st_area(st_union(segmented_crowns_dissolved, tree_cadaster_dissolved))))
+  global_IoU <- ifelse(global_union_area > 0, global_intersection_area / global_union_area, 0)
+  
+  # Count overlap-based true positives
+  matched_crowns <- st_intersects(segmented_crowns, tree_cadaster_buffer, sparse = FALSE)
+  true_positives <- sum(rowSums(matched_crowns) > 0)
+  
+  # False positives: detected crowns that do not overlap with cadaster trees
+  false_positives <- nrow(segmented_crowns) - true_positives
+  
+  # False negatives: cadaster trees not covered by any segmented crown
+  false_negatives <- nrow(tree_cadaster_buffer) - true_positives
+  
+  # Compute precision, recall, and F1-score
+  precision <- ifelse((true_positives + false_positives) > 0, true_positives / (true_positives + false_positives), 0)
+  recall <- ifelse((true_positives + false_negatives) > 0, true_positives / (true_positives + false_negatives), 0)
+  f1_score <- ifelse((precision + recall) > 0, 2 * (precision * recall) / (precision + recall), 0)
+  
+  # Count cadaster trees and detected crowns
+  count_cadaster <- nrow(tree_cadaster_buffer)
+  count_detected <- nrow(segmented_crowns)
+  
+  # Compute absolute and relative deviation
+  absolute_deviation <- count_detected - count_cadaster
+  relative_deviation <- ifelse(count_cadaster > 0, (count_detected / count_cadaster) * 100, NA)
+  
+  # Return results as a dataframe
+  data.frame(
+    Method = method_name,
+    True_Positives = true_positives,
+    False_Positives = false_positives,
+    False_Negatives = false_negatives,
+    Precision = precision,
+    Recall = recall,
+    F1_Score = f1_score,
+    mean_IoU = per_tree_iou,
+    Global_IoU = global_IoU,
+    Count_Cadaster = count_cadaster,
+    Count_Detected = count_detected,
+    Absolute_Deviation = absolute_deviation,
+    Relative_Deviation = relative_deviation
+  )
+}
+
+results_dalponte <- calculate_iou_for_crowns(crowns_dalponte, "Dalponte", tree_cadaster_buffer)
+results_silva <- calculate_iou_for_crowns(crowns_silva, "Silva", tree_cadaster_buffer)
+
+# Combine results
+crown_results <- rbind(results_dalponte, results_silva)
+
+# Display results
+print(crown_results)
+
+# Convert data to long format
+results_long <- crown_results %>%
+  pivot_longer(cols = c(mean_IoU, Global_IoU), 
+               names_to = "IoU_Type", 
+               values_to = "IoU_Score") %>%
+  mutate(IoU_Type = recode(IoU_Type, "mean_IoU" = "Per-Tree IoU", "Global_IoU" = "Global IoU"))
 
 
+iou_plot <- ggplot(results_long, aes(x = Method, y = IoU_Score, fill = IoU_Type)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  scale_fill_manual(values = c("Per-Tree IoU" = mako_colors[2], "Global IoU" = mako_colors[5])) +  # Improved colors
+  labs(title = "Comparison of IoU Metrics",
+       x = "Method",
+       y = "IoU Score",
+       fill = "IoU Type") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title.x = element_blank(),
+    legend.position = "right",
+    panel.grid.major.y = element_line(color = "gray80", linetype = "dashed"),  # Subtle grid
+    panel.grid.minor = element_blank(),
+    plot.margin = margin(10, 10, 20, 10)
+  )
+
+# Precision-Recall plot (Removed coord_fixed and adjusted margins)
+precision_recall_plot <- ggplot(crown_results, aes(x = Recall, y = Precision, label = Method, color = F1_Score)) +
+  geom_point(size = 5) + 
+  geom_text(color = "black", size = 4, vjust = -0.5, hjust = -0.1, family = "montserrat") +  # Ensuring font consistency
+  scale_color_viridis_c(option = "mako", begin = 0.2, end = 0.9, name = "F1 Score") +  # Use "mako" with adjusted range
+  labs(title = "Precision-Recall Tradeoff",
+       x = "Recall",
+       y = "Precision") +
+  theme(
+    legend.position = "right",
+    legend.margin = margin(l = 30),
+    plot.margin = margin(20, 10, 50, 10)  # Increased margin for better height
+  )+
+  coord_fixed(ratio = 5, clip= "off")
+
+# Arrange all plots with different heights
+segmentation_eval_plot <- iou_plot | precision_recall_plot +  
+  plot_layout(heights = c(0.5, 5), widths = c(1, 1))  # Precision-Recall plot gets more vertical space
+
+# Display the final combined plot
+print(segmentation_eval_plot)
+print(precision_recall_plot)
+#ggsave("plots/dalponte_silva_precision_recall_plot.png", plot = precision_recall_plot, width = 12, height = 8, dpi = 100, scale = 1)
 
