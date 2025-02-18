@@ -665,7 +665,7 @@ las_dalponte <- segment_trees(las_unfiltered, algo_dalponte)
 #plot(tree10, size = 8, bg = "white")
 crowns_dalponte <- crown_metrics(las_dalponte, func = ccm, geom = "concave")
 ## Post processing: Filter out small convex hulls, consider crowns over 1m2
-plot(crowns_dalponte["z_max"], main = "x_max")
+plot(crowns_dalponte["i_ratio"], main = "z_max")
 #crowns <- calculate_ratio_df(crowns)
 #crowns <- crowns[crowns$width_to_height_ratio > 0.5 & crowns$width_to_height_ratio < 1.5 ,]
 plot(chm, col = mako(50))
