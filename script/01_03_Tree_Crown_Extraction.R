@@ -52,6 +52,12 @@ calculate_ratio_df <- function(df) {
     mutate(width_to_height_ratio = calculate_ratio(geometry))
 }
 
+## Local Maximum Filter with variable windows size
+# Function for Deciduous Trees
+ws_deciduous <- function(H) {
+  return(3.09632 + 0.00895* (H^2))
+}
+
 ### Function to extract crowns from Lidar data
 extract_crowns <- function(las_clip, bbox) {
   print("extracting crowns...")
@@ -66,7 +72,7 @@ extract_crowns <- function(las_clip, bbox) {
 
   # point by a 20 cm radius circle of 8 points
   #chm_p2r_05 <- rasterize_canopy(las_aoi, 0.5, p2r(subcircle = 0.2), pkg = "terra")
-  chm_pitfree_subcirlce <- rasterize_canopy(las_unfiltered, res = 0.5, pitfree( thresholds = c(0, 2, 5, 10, 15), subcircle = 0.15))
+  chm_pitfree_subcirlce <- rasterize_canopy(las_aoi, res = 0.5, pitfree( thresholds = c(0, 2, 5, 10, 15), subcircle = 0.15))
   # Calculate focal ("moving window") values for each cell: smoothing steps with a median filter
   #kernel <- matrix(1,3,3)
   #chm_p2r_05_smoothed <- terra::focal(chm_p2r_05, w = kernel, fun = median, na.rm = TRUE)
@@ -82,25 +88,22 @@ extract_crowns <- function(las_clip, bbox) {
   patch_sizes <- freq(patches_chm) # Frequency table of patch IDs
   small_patches <- patch_sizes$value[patch_sizes$count <= 5] # IDs of small patches
   
-  # Create a mask for small patches
-  small_patches_mask <- patches_chm %in% small_patches
-  
-  # Remove small patches by masking them out
-  chm_pitfree_subcirlce_cleaned <- mask(chm_pitfree_subcirlce, small_patches_mask, maskvalue = TRUE)
-  
-  ## Local Maximum Filter with variable windows size
-  # Function for Deciduous Trees
-  ws_deciduous <- function(H) {
-    return(3.09632 + 0.00895* (H^2))
+  if (length(small_patches) > 0) {
+    small_patches_mask <- patches_chm %in% small_patches
+    chm_pitfree_subcirlce_cleaned <- mask(chm_pitfree_subcirlce, small_patches_mask, maskvalue = TRUE)
+  } else {
+    chm_pitfree_subcirlce_cleaned <- chm_pitfree_subcirlce
   }
   
+  ccm = ~custom_crown_metrics(z = Z, i = Intensity)
+
   # Use dalponte algorithm
   ttops_pitfree_subcirlce_cleaned <- locate_trees(chm_pitfree_subcirlce_cleaned, lmf(ws_deciduous, hmin=5, shape = c("square")))
-  algo_dalponte <- dalponte2016(chm, ttops,   th_tree = 2,    # Minimum tree height
+  algo_dalponte <- dalponte2016(chm_pitfree_subcirlce_cleaned, ttops_pitfree_subcirlce_cleaned,   th_tree = 2,    # Minimum tree height
                                 th_seed = 0.45, # Seed threshold for initial growth
                                 th_cr = 0.65,   # Crown merging threshold
                                 max_cr = 20)    # Max crown diameter (20 pixels = 10m for 0.5m CHM)
-  las_dalponte <- segment_trees(las_unfiltered, algo_dalponte)
+  las_dalponte <- segment_trees(las_aoi, algo_dalponte)
   crowns_dalponte <- crown_metrics(las_dalponte, func = ccm, geom = "concave")
   
   # Use Silva algorithm
@@ -116,9 +119,16 @@ extract_crowns <- function(las_clip, bbox) {
   #crowns <- crowns[crowns$z_sd > 0.5,]
   #crowns <- calculate_ratio_df(crowns)
   #crowns <- crowns[crowns$width_to_height_ratio > 0.5 & crowns$width_to_height_ratio < 1.5 ,]
+  if (is.null(crowns_dalponte) || nrow(crowns_dalponte) == 0) {
+    print("No crowns detected. Adjust parameters.")
+    return(NULL)
+  }
   
-  crowns <- st_simplify(crowns_dalponte, dTolerance = 0.3)
-  return(crowns)
+  if (!inherits(crowns_dalponte, "sf")) {
+    print("Extracted crowns are not an sf object. Returning NULL.")
+    return(NULL)
+  }
+  return(crowns_dalponte)
 }
 
 ### Function to process all .tif files in a given directory
@@ -155,8 +165,8 @@ process_tif_files <- function(dir_path, crowns_path, las_files) {
     las_clip <- readLAS(las_file)
     
     # Only consider crowns taller than 5 m
-    las_clip <- filter_poi(las_clip, Z >= 5)
-    chm <- rasterize_canopy(las_clip, 1, p2r())
+    las_clip <- filter_poi(las_clip, Z >= 0)
+    #chm <- rasterize_canopy(las_clip, 1, p2r())
     
     crowns <- extract_crowns(las_clip, ext)
     
